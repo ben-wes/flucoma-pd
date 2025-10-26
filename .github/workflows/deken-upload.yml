@@ -1,13 +1,6 @@
 name: deken-upload
-
 on:
   workflow_dispatch:
-    inputs:
-      branch:
-        description: 'Branch to upload from'
-        required: true
-        type: string
-        default: 'production'
 
 env:
   LIBNAME: FluidCorpusManipulation
