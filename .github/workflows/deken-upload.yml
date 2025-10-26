@@ -1,0 +1,123 @@
+name: deken-upload
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to upload from'
+        required: true
+        type: string
+        default: 'production'
+
+env:
+  LIBNAME: FluidCorpusManipulation
+
+jobs:
+  deken_upload:
+    runs-on: ubuntu-latest
+    if: github.event.inputs.branch == 'production'
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          path: ${{env.LIBNAME}}-src
+
+      - name: Download artifacts from latest release workflow
+        run: |
+          mkdir -p release-artifacts
+          # Get the latest successful release workflow run for this branch
+          LATEST_RUN=$(gh run list --branch="${{ github.event.inputs.branch }}" --workflow=release.yml --status=success --limit=1 --json databaseId --jq '.[0].databaseId')
+          if [ -n "$LATEST_RUN" ]; then
+            echo "Downloading artifacts from workflow run $LATEST_RUN"
+            gh run download "$LATEST_RUN" -D release-artifacts
+          else
+            echo "No successful release workflow found for branch ${{ github.event.inputs.branch }}"
+            exit 1
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install 7z for DMG extraction
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y p7zip-full
+
+      - name: Extract release archives
+        run: |
+          mkdir -p ${{env.LIBNAME}}
+          cd release-artifacts
+          
+          # Extract Linux
+          if [ -f FluCoMa-PD-Linux-x64.tar.gz ]; then
+            tar -xzf FluCoMa-PD-Linux-x64.tar.gz
+            cp -r FluidCorpusManipulation/* ../${{env.LIBNAME}}/
+          fi
+          
+          # Extract Windows
+          if [ -f FluCoMa-PD-Windows-x64.zip ]; then
+            unzip -oq FluCoMa-PD-Windows-x64.zip
+            cp -r FluidCorpusManipulation/* ../${{env.LIBNAME}}/
+          fi
+          
+          # Extract macOS (DMG - mount and copy)
+          if [ -f FluCoMa-PD-Mac.dmg ]; then
+            mkdir -p /tmp/flucoma-dmg
+            # Extract DMG on Linux using 7z (hdiutil is macOS-only)
+            if command -v 7z >/dev/null 2>&1; then
+              7z x -y -o/tmp/flucoma-dmg FluCoMa-PD-Mac.dmg >/dev/null || true
+              MAC_PAYLOAD=$(find /tmp/flucoma-dmg -type d -name FluidCorpusManipulation | head -n 1 || true)
+              if [ -n "$MAC_PAYLOAD" ]; then
+                cp -r "$MAC_PAYLOAD"/* ../${{env.LIBNAME}}/ || true
+              fi
+            else
+              echo "7z not available; skipping macOS payload merge"
+            fi
+          fi
+
+      - name: Get version from release artifacts
+        id: get-version
+        run: |
+          # Extract version from the linux build artifact
+          if [ -f release-artifacts/FluCoMa-PD-Linux-x64.tar.gz ]; then
+            tar -xzf release-artifacts/FluCoMa-PD-Linux-x64.tar.gz -C /tmp
+            VERSION=$(cat /tmp/FluidCorpusManipulation/flucoma.version.rc 2>/dev/null || echo "unknown")
+          else
+            VERSION="unknown"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Using version: $VERSION"
+
+      - name: Check Deken Package
+        shell: bash
+        run: |
+          VERSION=${{ steps.get-version.outputs.version }}
+          echo "## package" | tee -a $GITHUB_STEP_SUMMARY
+          mkdir -p package
+          docker run --rm --user $(id -u) --volume ./${{env.LIBNAME}}:/${{env.LIBNAME}} --volume ./package:/package registry.git.iem.at/pd/deken \
+            deken package --output-dir /package --version "${VERSION}" /${{env.LIBNAME}}
+
+          dek_files=$(ls package/*.dek)
+          for dek_file in $dek_files; do
+            filename=$(basename "$dek_file")
+            echo -e "#### \`$filename\`" | tee -a $GITHUB_STEP_SUMMARY
+            echo '```' | tee -a $GITHUB_STEP_SUMMARY
+            unzip -l "$dek_file" | awk 'NR>3 {print $4}' | sed '/^$/d' | sort | tee -a $GITHUB_STEP_SUMMARY
+            echo '```' | tee -a $GITHUB_STEP_SUMMARY
+          done
+
+      - name: Upload Deken Package
+        if: ${{ github.event.inputs.branch == 'production' }}
+        shell: bash
+        env:
+          DEKEN_USERNAME: ${{ secrets.DEKEN_USERNAME }}
+          DEKEN_PASSWORD: ${{ secrets.DEKEN_PASSWORD }}
+        run: |
+          VERSION=${{ steps.get-version.outputs.version }}
+          # Upload platform-specific package
+          docker run --rm -e DEKEN_USERNAME -e DEKEN_PASSWORD \
+            --volume ./${{env.LIBNAME}}:/${{env.LIBNAME}} registry.git.iem.at/pd/deken \
+            deken upload --name ${{env.LIBNAME}} --version "${VERSION}" --no-source-error /${{env.LIBNAME}}
+          # Upload source code
+          docker run --rm -e DEKEN_USERNAME -e DEKEN_PASSWORD \
+            --volume ./${{env.LIBNAME}}-src:/${{env.LIBNAME}} registry.git.iem.at/pd/deken \
+            deken upload --name ${{env.LIBNAME}} --version "${VERSION}" /${{env.LIBNAME}}
