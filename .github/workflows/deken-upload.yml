@@ -18,10 +18,10 @@ jobs:
         run: |
           mkdir -p release-artifacts
           # Get the latest successful release workflow run for this branch
-          LATEST_RUN=$(gh run list --branch="${{ github.event.inputs.branch }}" --workflow=release.yml --status=success --limit=1 --json databaseId --jq '.[0].databaseId')
+          LATEST_RUN=$(gh run list --repo="${{ github.repository }}" --branch="${{ github.event.inputs.branch }}" --workflow=release.yml --status=success --limit=1 --json databaseId --jq '.[0].databaseId')
           if [ -n "$LATEST_RUN" ]; then
             echo "Downloading artifacts from workflow run $LATEST_RUN"
-            gh run download "$LATEST_RUN" -D release-artifacts
+            gh run download "$LATEST_RUN" --repo="${{ github.repository }}" -D release-artifacts
           else
             echo "No successful release workflow found for branch ${{ github.event.inputs.branch }}"
             exit 1
