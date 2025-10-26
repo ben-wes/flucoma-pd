@@ -8,7 +8,6 @@ env:
 jobs:
   deken_upload:
     runs-on: ubuntu-latest
-    if: github.event.inputs.branch == 'production'
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
