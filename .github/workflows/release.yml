@@ -65,6 +65,10 @@ jobs:
         with:
           branch: origin/${{ github.ref_name }} 
 
+      - name: copy version file to release package
+        run: |
+          cp build/_deps/flucoma-core-src/flucoma.version.rc release-packaging/FluidCorpusManipulation/
+
       - name: compress archive
         run: tar -zcvf FluCoMa-PD-Linux-x64.tar.gz FluidCorpusManipulation
         working-directory: release-packaging

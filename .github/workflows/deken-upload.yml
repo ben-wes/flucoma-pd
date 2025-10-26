@@ -17,13 +17,18 @@ jobs:
       - name: Download artifacts from latest release workflow
         run: |
           mkdir -p release-artifacts
+          BRANCH="${{ github.event.inputs.branch }}"
+          echo "Looking for release workflow runs on branch: '$BRANCH'"
+          
           # Get the latest successful release workflow run for this branch
-          LATEST_RUN=$(gh run list --repo="${{ github.repository }}" --branch="${{ github.event.inputs.branch }}" --workflow=release.yml --status=success --limit=1 --json databaseId --jq '.[0].databaseId')
-          if [ -n "$LATEST_RUN" ]; then
+          LATEST_RUN=$(gh run list --repo="${{ github.repository }}" --branch="$BRANCH" --workflow=release.yml --status=success --limit=1 --json databaseId --jq '.[0].databaseId')
+          if [ -n "$LATEST_RUN" ] && [ "$LATEST_RUN" != "null" ]; then
             echo "Downloading artifacts from workflow run $LATEST_RUN"
             gh run download "$LATEST_RUN" --repo="${{ github.repository }}" -D release-artifacts
           else
-            echo "No successful release workflow found for branch ${{ github.event.inputs.branch }}"
+            echo "No successful release workflow found for branch '$BRANCH'"
+            echo "Available branches with release workflows:"
+            gh run list --repo="${{ github.repository }}" --workflow=release.yml --status=success --limit=10 --json headBranch --jq '.[].headBranch' | sort | uniq
             exit 1
           fi
         env:
@@ -71,9 +76,20 @@ jobs:
         run: |
           # Extract version from the linux build artifact
           if [ -f release-artifacts/FluCoMa-PD-Linux-x64.tar.gz ]; then
+            echo "Extracting Linux artifact to /tmp..."
             tar -xzf release-artifacts/FluCoMa-PD-Linux-x64.tar.gz -C /tmp
-            VERSION=$(cat /tmp/FluidCorpusManipulation/flucoma.version.rc 2>/dev/null || echo "unknown")
+            echo "Looking for version file at: /tmp/FluidCorpusManipulation/flucoma.version.rc"
+            if [ -f /tmp/FluidCorpusManipulation/flucoma.version.rc ]; then
+              VERSION=$(cat /tmp/FluidCorpusManipulation/flucoma.version.rc)
+              echo "Found version: $VERSION"
+            else
+              echo "Version file not found, listing contents of /tmp/FluidCorpusManipulation/:"
+              ls -la /tmp/FluidCorpusManipulation/ || echo "Directory doesn't exist"
+              VERSION="unknown"
+            fi
           else
+            echo "Linux artifact not found: release-artifacts/FluCoMa-PD-Linux-x64.tar.gz"
+            ls -la release-artifacts/ || echo "release-artifacts directory doesn't exist"
             VERSION="unknown"
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
