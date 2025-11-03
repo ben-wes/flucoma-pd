@@ -119,3 +119,14 @@ jobs:
           target_commitish: ${{ github.sha }}
           draft: false
 
+  deken:
+    runs-on: ubuntu-22.04
+    needs: [macbuild, winbuild, linuxbuild, release]
+    steps:
+      - uses: flucoma/flucoma-actions/deken@5740257e449a4793c31559626a2275a8224dd135
+        with:
+          libname: FluidCorpusManipulation
+          version: ${{ needs.linuxbuild.outputs.version }}
+          deken-username: ${{ secrets.DEKEN_USERNAME }}
+          deken-password: ${{ secrets.DEKEN_PASSWORD }}
+
