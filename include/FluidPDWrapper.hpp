@@ -1804,8 +1804,7 @@ private:
     auto result = x->mClient.template invoke<N>(x->mClient);
     if (x->checkResult(result))
     {
-      poststring(/*(t_object*) x, "%s",*/
-                 static_cast<std::string>(result).c_str());
+      post("%s", static_cast<std::string>(result).c_str());
       outlet_anything(x->mDumpOutlet, gensym("print"), 0, nullptr);
     }
   }
