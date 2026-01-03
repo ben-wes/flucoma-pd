@@ -19,23 +19,23 @@ jobs:
         with:
           branch: origin/main
 
-      - name: sign binaries
-        uses: flucoma/actions/distribution@main
-        with:
-          glob: '-e pd_darwin'
-          package: 'release-packaging'
-          output_type: 'dmg'
-          output: FluCoMa-PD-Mac-nightly
-          cert: ${{ secrets.CERT }}
-          certpwd: ${{ secrets.CERTPWD }}
-          teamid: ${{ secrets.WWDRTEAMID }}
-          apppwd: ${{ secrets.APPSTORECONNECTPWD }}
-          appusr: ${{ secrets.APPSTORECONNECTUSERNAME }}
+      # - name: sign binaries
+      #   uses: flucoma/actions/distribution@main
+      #   with:
+      #     glob: '-e pd_darwin'
+      #     package: 'release-packaging'
+      #     output_type: 'dmg'
+      #     output: FluCoMa-PD-Mac-nightly
+      #     cert: ${{ secrets.CERT }}
+      #     certpwd: ${{ secrets.CERTPWD }}
+      #     teamid: ${{ secrets.WWDRTEAMID }}
+      #     apppwd: ${{ secrets.APPSTORECONNECTPWD }}
+      #     appusr: ${{ secrets.APPSTORECONNECTUSERNAME }}
 
-      - uses: actions/upload-artifact@v4.3.6
-        with:
-          name: macbuild
-          path: release-packaging/FluCoMa-PD-Mac-nightly.dmg
+      # - uses: actions/upload-artifact@v4.3.6
+      #   with:
+      #     name: macbuild
+      #     path: release-packaging/FluCoMa-PD-Mac-nightly.dmg
 
       # additional upload to avoid dmg unpacking for deken
       - name: archive mac folder for deken
@@ -132,7 +132,7 @@ jobs:
     runs-on: ubuntu-22.04
     needs: [macbuild, winbuild, linuxbuild]
     steps:
-      - uses: flucoma/actions/deken@v6
+      - uses: ben-wes/flucoma-actions/deken@add/deken
         with:
           version: ${{ needs.linuxbuild.outputs.version }}
           deken_username: ${{ secrets.DEKEN_USERNAME }}
